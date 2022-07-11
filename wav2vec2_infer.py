@@ -1,74 +1,82 @@
-import os, time
+import os
 from tqdm import tqdm
 from utils import tools
 from argparse import ArgumentParser
-from wav2vec2.utils import from_pretrained, predict
-from datasets import load_metric
-from utils.datasets import load_datasets
+from wav2vec2.infer_utils import from_pretrained, obtain_transcription
+from jiwer import wer as wer_metric
+from utils.datasets import load_datasets, create_dataset, filter_long_audios
+from typing import List
 
 parser = ArgumentParser()
 parser.add_argument('--wav_folder', type=str, default=None, help='folder containing wav/flac files')
 parser.add_argument('--wav_json', type=str, default=None, help='json file with key/value=wav_path/text')
 parser.add_argument('--dataset_name', type=str, default=None, choices=['tedlium'])
+parser.add_argument('--batch', type=int, default=20)
 parser.add_argument('--model_id', type=str, default='facebook/wav2vec2-large-960h-lv60-self') # jonatasgrosman/wav2vec2-large-xlsr-53-english
-parser.add_argument('--verbose', action='store_true', default=False)
+parser.add_argument('--with_lm_id', type=str, default=None) # LM: patrickvonplaten/wav2vec2-base-100h-with-lm
+parser.add_argument('--max_duration', type=int, default=20)
 args = parser.parse_args()
 print(args)
 
+def alias(id: str) -> id:
+    if id == 'base-lm':
+        return 'patrickvonplaten/wav2vec2-base-100h-with-lm'
+    elif id == 'xlsr-lm':
+        return 'jonatasgrosman/wav2vec2-large-xlsr-53-english'
+    else:
+        return id
+args.with_lm_id = alias(args.with_lm_id)
+
 # * load model
 print(f'Load pretrained model from: {args.model_id}')
-model, processor = from_pretrained(args.model_id)
+if args.with_lm_id is not None:
+    print(f'Inference with language model: {args.with_lm_id}')
+else:
+    print(f'Inference without language model.')
+model, processor = from_pretrained(model_id=args.model_id, with_lm_id=args.with_lm_id)
 model.eval()
 model.cuda()
 
-# * Loop wavs
-def infer_all(wavs: list, labels: list = None, verbose: bool = True):
-    preds = list()
-    start_time = time.time()
-    if verbose is False:
-        wavs = tqdm(wavs)
-    for i, wav in enumerate(wavs):
-        pred = predict(model, processor, wav).lower()
-        preds.append(pred)
-        if verbose is True:
-            if labels is not None:
-                text = labels[i]
-                print(f'{i}: {pred.lower()} <-> {text.lower()}')
-            else:
-                print(f'{i}: {pred.lower()}')
-    return preds, time.time() - start_time
-
-wer_metric = load_metric("wer")
+# Procedures
 def compute_wer(preds, labels):
     preds = [item.lower() for item in preds]
     labels = [item.lower() for item in labels]
-    return  wer_metric.compute(predictions=preds, references=labels)
+    return wer_metric(truth=labels, hypothesis=preds)
 
+def save_results(dataset, results, save_dir=''):
+    wavs = [row['file'] for row in dataset]
+    texts = [row['text'] for row in dataset]
+    wer = compute_wer(results, texts) if len(''.join(texts)) != 0 else 999
+    model_str = args.model_id.strip(os.path.sep).replace(os.path.sep, '-')
+    lm_str = args.with_lm_id.strip(os.path.sep).replace(os.path.sep, '-') if args.with_lm_id is not None else None
+    save_path = os.path.join(
+        save_dir, f'{args.dataset_name}_wer-{wer:.4f}_{model_str}_lm-{str(lm_str)}.json')
+    tools.write_file(save_path, [';'.join([wavs[i], texts[i], results[i]]) for i in range(len(wavs))])
+    print(f'Results saved to: {save_path}.')
+
+
+# Inference
 if args.wav_folder is not None:
     print(f'...Inference audios in {args.wav_folder}')
     wavs = tools.find_all_ext(args.wav_folder, ['flac', 'wav'])
-    preds, elapsed = infer_all(wavs, verbose=args.verbose)
-    save_path = os.path.join(args.wav_folder, args.model_id.replace(os.path.sep, '-') + '.json')
-    tools.write_json(save_path, dict([(wavs[i], preds[i]) for i in range(len(wavs))]))
-    print(f'{args.wav_folder} results saved to: {save_path} ({elapsed:.4f} sec cost; {elapsed / len(wavs)} sec per wav)')
+    dataset = create_dataset(wavs)
+    dataset = filter_long_audios(dataset, args.max_duration)
+    print('Get audios number:', len(dataset))
+    results = obtain_transcription(dataset, model, processor, args.batch)
+    save_results(dataset, results, os.path.dirname(args.wav_folder))
 
 if args.wav_json is not None:
     print(f'...Inference audios from {args.wav_json}')
     path2text = tools.read_json(args.wav_json)
-    preds, elapsed = infer_all(list(path2text.keys()), labels=list(path2text.values()), verbose=args.verbose)
-    wer = compute_wer(preds, list(path2text.values()))
-    save_path = os.path.join(
-        os.path.dirname(args.wav_json), 
-        args.model_id.replace(os.path.sep, '-') + '-{0}-wer-{1:.4f}.json'.format(args.wav_json.replace('.json', ''), wer))
-    tools.write_json(save_path, {kv[0]: (preds[i], kv[1]) for i, kv in enumerate(path2text.items())})
-    print(f'{args.wav_json} results saved to: {save_path} ({elapsed:.4f} sec cost; {elapsed / len(preds)} sec per wav)')
+    dataset = create_dataset(list(path2text.items()))
+    dataset = filter_long_audios(dataset, args.max_duration)
+    print('Get audios number:', len(dataset))
+    results = obtain_transcription(dataset, model, processor, args.batch)
+    save_results(dataset, results)
     
 if args.dataset_name is not None:
     test_split = load_datasets(args.dataset_name, split='test')
-    wavs, labels = [item['audio']['array'] for item in test_split], [item['text'] for item in test_split]
-    preds, elapsed = infer_all(wavs, labels=labels, verbose=args.verbose)
-    wer = compute_wer(preds, labels)
-    save_path = args.model_id.strip(os.path.sep).replace(os.path.sep, '-') + f'-{args.dataset_name}-wer-{wer:.4f}.json'
-    tools.write_json(save_path, {item['file']: (preds[i], item['text']) for i, item in enumerate(test_split)})
-    print(f'{args.dataset_name} results saved to: {save_path} ({elapsed:.4f} sec cost; {elapsed / len(wavs)} sec per wav)')
-
+    test_split = filter_long_audios(test_split, args.max_duration)
+    print('Get audios number:', len(test_split))
+    results = obtain_transcription(test_split, model, processor, args.batch)
+    save_results(test_split, results)

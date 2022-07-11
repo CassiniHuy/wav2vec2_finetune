@@ -1,8 +1,8 @@
 import os, glob, itertools, json
-import torchaudio
 from types import SimpleNamespace
 from configparser import ConfigParser
 from ast import literal_eval
+from typing import List, Union
 
 def dict_eval(d):
     for k, v in d.items():
@@ -43,23 +43,6 @@ def lists_to_one(lists: list):
     return list(itertools.chain(*lists))
 
 
-def load_wav(path, sr=16000):
-    torchaudio.set_audio_backend('soundfile')
-    wave, sr_ori = torchaudio.load(path)
-    if sr_ori != sr:
-        wave = torchaudio.functional.resample(wave, sr_ori, sr, lowpass_filter_width=64)
-    return wave
-
-
-def load_wav2(path1, path2, sr=16000):
-    wave1 = load_wav(path1, sr)
-    wave2 = load_wav(path2, sr)
-    ori_shape = (wave1.shape[1], wave2.shape[1])
-    n_samples = min(wave1.shape[1], wave2.shape[1])  # ! cut the longer one
-    wave1, wave2 = wave1[:, :n_samples], wave2[:, :n_samples]
-    return wave1, wave2, ori_shape
-
-
 def makedir(path):
     dirname = os.path.dirname(path)
     if len(dirname) != 0:
@@ -86,16 +69,6 @@ def concate_path(path: str, root: str = None, connector: str = '-'):
     return connector.join(rel_path.strip(os.path.sep).split(os.path.sep))
 
 
-def save_wav(wave, path, sr=16000):
-    torchaudio.save(makedir(path),
-                    wave,
-                    sample_rate=sr,
-                    format='wav',
-                    encoding='PCM_S',
-                    bits_per_sample=16)
-    return path
-
-
 def read_json(path: str):
     with open(path) as f:
         return json.load(f)
@@ -120,8 +93,11 @@ def read_file(path) -> str:
         return f.read().strip()
 
 
-def write_file(path, text):
+def write_file(path: str, text: Union[str, List[str]]):
     with open(makedir(path), 'w') as f:
-        f.write(text)
-        return text
+        if isinstance(text, str):
+            f.write(text)
+        else:
+            for line in text:
+                f.write(line + '\n')
 

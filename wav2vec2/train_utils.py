@@ -1,9 +1,9 @@
-import torch, torchaudio
+import torch
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 from transformers import Wav2Vec2Processor, Trainer, Wav2Vec2ForCTC, TrainingArguments
-from datasets import load_metric
+from datasets import load_metric, Dataset
 
 @dataclass
 class DataCollatorCTCWithPadding:
@@ -69,8 +69,8 @@ class DataCollatorCTCWithPadding:
     
 
 # * Compute metrics
-wer_metric = load_metric("wer")
 def compute_metrics(pred, processor: Wav2Vec2Processor) -> Dict[str, float]:
+    wer_metric = load_metric("wer")
     pred_logits = pred.predictions
     pred_ids = np.argmax(pred_logits, axis=-1)
     pred.label_ids[pred.label_ids == -100] = processor.tokenizer.pad_token_id
@@ -100,28 +100,15 @@ def get_trainer(
     return trainer
 
 
-# * Get pretrained
-def from_pretrained(model_id: str) -> Tuple[Wav2Vec2ForCTC, Wav2Vec2Processor]:
-    try:
-        model = Wav2Vec2ForCTC.from_pretrained(model_id,  local_files_only=True)
-        processor = Wav2Vec2Processor.from_pretrained(model_id, local_files_only=True)
-    except OSError:
-        model = Wav2Vec2ForCTC.from_pretrained(model_id,  local_files_only=False)
-        processor = Wav2Vec2Processor.from_pretrained(model_id, local_files_only=False)
-    return model, processor
-
-
 def preprocess(
     processor: Wav2Vec2Processor,
-    dataset: List[Dict],
-    audio_column: str = 'audio',
-    transcription_column: str = 'text'
+    dataset: Dataset
     ) -> List[Dict]:
     inputs = list()
     alphabets = ''.join(filter(lambda x: x.isalpha(), list(processor.tokenizer.decoder.values())))
     for item in dataset:
         row = dict()
-        array, text = item[audio_column]['array'], item[transcription_column]
+        array, text = item['audio']['array'], item['text']
         text = text.upper() if alphabets.isupper() else text.lower()
         row["input_values"] = processor(
             array, sampling_rate=processor.feature_extractor.sampling_rate).input_values[0]
@@ -130,25 +117,4 @@ def preprocess(
         inputs.append(row)
     return inputs
 
-
-def predict(
-    model: Wav2Vec2ForCTC, 
-    processor: Wav2Vec2Processor, 
-    wav: str or np.array,
-    cuda: bool = True):
-    if type(wav) == str:
-        torchaudio.set_audio_backend('soundfile')
-        wave, sr_ori = torchaudio.load(wav)
-        if sr_ori != processor.feature_extractor.sampling_rate:
-            wave = torchaudio.functional.resample(
-                wave, sr_ori, 
-                processor.feature_extractor.sampling_rate,
-                 lowpass_filter_width=64)
-    else:
-        wave = torch.tensor(wav, dtype=torch.float).reshape([1, wav.shape[-1]])
-    if cuda is True: wave = wave.cuda()
-    with torch.no_grad():
-        logits = model(wave).logits
-        pred_ids = torch.argmax(logits, dim=-1).cpu()
-        return processor.batch_decode(pred_ids)[0]
 

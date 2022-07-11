@@ -1,8 +1,8 @@
 import os
 from argparse import ArgumentParser
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
-from wav2vec2.utils import get_trainer, preprocess
-from wav2vec2.config import get_training_arguments
+from wav2vec2.train_utils import get_trainer, preprocess
+from wav2vec2.train_config import get_training_arguments
 from utils import datasets, tools
 
 parser = ArgumentParser()
@@ -13,9 +13,11 @@ parser.add_argument('--wav_json', type=str, default=None)
 parser.add_argument('--dataset_name', type=str, default='tedlium', choices=['tedlium'])
 parser.add_argument('--save_path', type=str, default='./wav2vec2_models')
 parser.add_argument('--num_train_epochs', type=int, default=None, help='Number of training epochs.')
+parser.add_argument('--resume_from_checkpoint', action='store_true', default=False)
 parser.add_argument('--per_device_train_batch_size', type=int, default=None)
 parser.add_argument('--local_files_only', action='store_true', default=False)
 args = parser.parse_args()
+print(args)
 
 # * Load training arguments
 output_dir = os.path.join(args.save_path, args.model_id.replace(os.path.sep, '-'))
@@ -36,11 +38,12 @@ processor = Wav2Vec2Processor.from_pretrained(
 # * Load training/test data
 if args.wav_json is not None:
     path2text = tools.read_json(args.wav_json)
-    train_wavs, test_wavs = datasets.split_wavs(path2text, test_ratio=0.3)
-    train_dataset = datasets.create_dataset(train_wavs, processor.feature_extractor.sampling_rate)
-    test_dataset = datasets.create_dataset(test_wavs, processor.feature_extractor.sampling_rate)
+    train_wavs, test_wavs = datasets.split_wavs(list(path2text.items()), test_ratio=0.3)
+    train_dataset = datasets.create_dataset(train_wavs)
+    test_dataset = datasets.create_dataset(test_wavs)
 elif args.dataset_name is not None:
-    train_dataset, test_dataset, _ = datasets.load_datasets(args.dataset_name)
+    splits = datasets.load_datasets(args.dataset_name)
+    train_dataset, test_dataset = splits['train'], splits['validation']
 else:
     raise RuntimeError('wav_json and dataset_name cannot both be None')
 
@@ -52,7 +55,7 @@ print(f'{len(test_dataset)} audios in test split ({datasets.compute_dataset_leng
 tools.write_json(
     os.path.join(output_dir, 'test_split.json'), 
     {item['file']: item['text'] for item in test_dataset})
-print(f'Dataset training vocabs:', list(datasets.get_vocabs(train_dataset, key='text')))
+print(f'Dataset training vocabs:', list(datasets.get_vocabs(train_dataset)))
 
 # assert 1 == 0
 
@@ -64,7 +67,7 @@ trainer = get_trainer(
     preprocess(processor, train_dataset), 
     preprocess(processor, test_dataset))
 try:
-    trainer.train()
+    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
 except KeyboardInterrupt:
     print('Training early stopped by KeyboardInterrupt.')
 
