@@ -92,7 +92,7 @@ def load_tedlium(
     split: str = None,
     ) -> DatasetDict or Dataset:
     invalid_tedlium_text = 'ignore_time_segment_in_scoring'
-    invalid_vocabs = r'[0123456789&\$\+]'
+    invalid_vocabs = r'[0123456789&@\$\+]'
     def is_valid(text: str) -> bool: # ! Just filter out these data
         if text == invalid_tedlium_text: 
             return False

@@ -11,22 +11,40 @@ parser.add_argument('--model_id',
                     default='facebook/wav2vec2-large-960h-lv60-self')
 parser.add_argument('--wav_json', type=str, default=None)
 parser.add_argument('--dataset_name', type=str, default='tedlium', choices=['tedlium'])
-parser.add_argument('--save_path', type=str, default='./wav2vec2_models')
+parser.add_argument('--ckpt_path', type=str, default='./wav2vec2_models')
+parser.add_argument('--model_save_path', type=str, default=None, help='Default to the same as ckpt path.')
 parser.add_argument('--num_train_epochs', type=int, default=None, help='Number of training epochs.')
-parser.add_argument('--resume_from_checkpoint', action='store_true', default=False)
-parser.add_argument('--per_device_train_batch_size', type=int, default=None)
+parser.add_argument('--training_restore', action='store_true', default=False)
+parser.add_argument('--batch_size', type=int, default=None)
 parser.add_argument('--local_files_only', action='store_true', default=False)
+parser.add_argument('--evaluation_strategy', type=str, default=None)
 args = parser.parse_args()
 print(args)
 
+def alias(id: str) -> id:
+    if id == 'large-model':
+        return 'facebook/wav2vec2-large-960h-lv60-self'
+    elif id == 'xlsr-model':
+        return 'jonatasgrosman/wav2vec2-large-xlsr-53-english'
+    else:
+        return id
+args.model_id = alias(args.model_id)
+
+
 # * Load training arguments
-output_dir = os.path.join(args.save_path, args.model_id.replace(os.path.sep, '-'))
+output_dir = os.path.join(args.ckpt_path, args.model_id.replace(os.path.sep, '-'))
 training_args = get_training_arguments(
     output_dir=output_dir)
 if args.num_train_epochs is not None:
     training_args.num_train_epochs = args.num_train_epochs
-if args.per_device_train_batch_size is not None:
-    training_args.per_device_train_batch_size = args.per_device_train_batch_size
+if args.batch_size is not None:
+    training_args.per_device_train_batch_size = args.batch_size
+if args.evaluation_strategy is not None:
+    training_args.evaluation_strategy = args.evaluation_strategy
+
+if args.model_save_path is None:
+    args.model_save_path = output_dir
+args.model_save_path: str = tools.makedir(args.model_save_path)
 
 # * Load model
 print(f'Load pretrained model from: {args.model_id}')
@@ -42,7 +60,7 @@ if args.wav_json is not None:
     train_dataset = datasets.create_dataset(train_wavs)
     test_dataset = datasets.create_dataset(test_wavs)
 elif args.dataset_name is not None:
-    splits = datasets.load_datasets(args.dataset_name)
+    splits = datasets.load_datasets(args.dataset_name, train_limit=7000, random_seed=1234)
     train_dataset, test_dataset = splits['train'], splits['validation']
 else:
     raise RuntimeError('wav_json and dataset_name cannot both be None')
@@ -67,11 +85,11 @@ trainer = get_trainer(
     preprocess(processor, train_dataset), 
     preprocess(processor, test_dataset))
 try:
-    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
+    trainer.train(resume_from_checkpoint=args.training_restore)
 except KeyboardInterrupt:
     print('Training early stopped by KeyboardInterrupt.')
 
 # * Save
-model.save_pretrained(output_dir)
-processor.save_pretrained(output_dir)
+model.save_pretrained(args.model_save_path)
+processor.save_pretrained(args.model_save_path)
 

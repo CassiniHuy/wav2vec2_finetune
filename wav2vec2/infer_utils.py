@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 from typing import List, Tuple, Union
 from transformers import Wav2Vec2Processor, Wav2Vec2ForCTC, Wav2Vec2ProcessorWithLM
-from wav2vec2.lm import combine_lm
+from wav2vec2.lm import reset_processor_decoder
 from utils.datasets import Dataset
 
 
@@ -23,7 +23,7 @@ def from_pretrained(model_id: str, with_lm_id: str = None
         except:
             processor_lm = Wav2Vec2ProcessorWithLM.from_pretrained(with_lm_id, local_files_only=False)
         if with_lm_id != model_id:
-            processor_lm = combine_lm(processor, processor_lm)
+            processor_lm = reset_processor_decoder(processor, processor_lm)
         return model, processor_lm
 
 

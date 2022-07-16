@@ -46,7 +46,7 @@ def reset_idx2vocab(
         warnings.warn(message=f"Vocabs uncovered in LM's _idx2vocab: {str(lm_vocabs_uncovered)}.", category=RuntimeWarning)
     if len(ori_vocabs_uncovered) != 0:
         for ori_vocab in ori_vocabs_uncovered:
-            new_lm_idx2vocab[tokenizer.encoder[ori_vocab]] = '⁇'
+            new_lm_idx2vocab[tokenizer.encoder[ori_vocab]] = UNK_TOKEN
         warnings.warn(message=f"Vocabs uncovered in tokenizer's decoder: {str(ori_vocabs_uncovered)}." + \
             "Corresponding indices are mapped to the unknown token.", category=RuntimeWarning)
     new_lm_labels = list(new_lm_idx2vocab.values())
@@ -76,7 +76,7 @@ def reset_tokenizer_vocabs(tokenizer: Wav2Vec2CTCTokenizer, lm_tokenizer: Wav2Ve
     return tokenizer
 
 
-def combine_lm(
+def reset_processor_decoder(
     processor_nolm: Wav2Vec2Processor,
     processor_withlm: Wav2Vec2ProcessorWithLM
     ) -> Wav2Vec2ProcessorWithLM:
