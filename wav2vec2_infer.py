@@ -12,7 +12,7 @@ parser.add_argument('--dataset_name', type=str, default=None, choices=['tedlium'
 parser.add_argument('--model_id', type=str, default='facebook/wav2vec2-large-960h-lv60-self') # jonatasgrosman/wav2vec2-large-xlsr-53-english
 parser.add_argument('--with_lm_id', type=str, default=None) # LM: patrickvonplaten/wav2vec2-base-100h-with-lm
 parser.add_argument('--batch', type=int, default=20)
-parser.add_argument('--max_duration', type=int, default=20)
+parser.add_argument('--max_duration', type=int, default=20, help='filter out long audios')
 args = parser.parse_args()
 print(args)
 

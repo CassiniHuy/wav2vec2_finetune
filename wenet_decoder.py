@@ -1,6 +1,6 @@
-import utils
-import os, requests, tarfile, json, time
+from utils import tools
 import wenet
+import os, requests, tarfile, json, time
 from argparse import ArgumentParser
 
 argparser = ArgumentParser()
@@ -14,7 +14,7 @@ default_dir = os.path.join('cache', '20210610_u2pp_conformer_libtorch')
 if args.model_dir is None:
     if os.path.exists(default_dir) is False:
         print('...Downloading pre-trained model from:', url)
-        with open(utils.makedir(default_dir + '.tar.gz'), 'wb') as targz_f:
+        with open(tools.makedir(default_dir + '.tar.gz'), 'wb') as targz_f:
             response = requests.get(url, stream=True)
             if response.status_code == 200:
                 targz_f.write(response.raw.read())
@@ -26,7 +26,7 @@ if args.model_dir is None:
 
 # decode wav files
 decoder = wenet.Decoder(lang='en', model_dir=args.model_dir)
-for wav in utils.find_all_ext(args.wav_folder, 'wav'):
+for wav in tools.find_all_ext(args.wav_folder, 'wav'):
     s = time.time()
     ans = json.loads(decoder.decode_wav(wav))
     print(time.time() - s)

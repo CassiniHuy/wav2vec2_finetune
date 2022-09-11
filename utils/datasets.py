@@ -1,5 +1,5 @@
 import re, random, warnings
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from datasets import load_dataset, Dataset, DatasetInfo, Features, Audio, Value
 from datasets.dataset_dict import DatasetDict
 
@@ -12,7 +12,7 @@ features = Features({
     })
 dataset_info = DatasetInfo(features=features)
 AUDIO_PATH, TEXT = str, str
-DATA_LIST = List[Tuple[AUDIO_PATH, TEXT]] or List[Tuple[AUDIO_PATH]]
+DATA_LIST = Union[List[Tuple[AUDIO_PATH, TEXT]], List[Tuple[AUDIO_PATH]]]
 chars_to_ignore_regex = r'<.*?>|\[.*?\]|\(.*?\)|\{.*?\}|[\,\?\.\!\-\;\:\"]'
 
 

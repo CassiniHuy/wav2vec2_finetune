@@ -2,7 +2,12 @@ import torch
 import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
-from transformers import Wav2Vec2Processor, Trainer, Wav2Vec2ForCTC, TrainingArguments
+from transformers import (
+    Wav2Vec2Processor, 
+    Trainer, 
+    Wav2Vec2ForCTC, 
+    TrainingArguments
+    )
 from datasets import load_metric, Dataset
 
 @dataclass
