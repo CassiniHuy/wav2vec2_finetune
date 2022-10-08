@@ -52,7 +52,7 @@ python wav2vec2_infer.py --wav_folder your/audio/files/folder --model_id faceboo
   ```
 - Visit the torchserve(*handler_v1.py*):
   ```
-  curl http://127.0.0.1:8083/predictions/modela -X POST -T test_audio.wav'
+  curl http://127.0.0.1:8083/predictions/modela -X POST -T test_audio.wav
   ```
 - Stop torchserve:
   ```
