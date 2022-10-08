@@ -145,8 +145,8 @@ class Wav2vec2Handler(BaseHandler):
         #     if torch.cuda.is_available() and properties.get("gpu_id") is not None
         #     else "cpu"
         # )
-        self.device = torch.device('cpu')
-        # self.device = torch.device('cuda:0')
+        # self.device = torch.device('cpu')
+        self.device = torch.device('cuda:0')
 
         self.model = Wav2Vec2ForCTC.from_pretrained(model_dir,  local_files_only=True)
         self.model.eval()
@@ -191,7 +191,7 @@ class Wav2vec2Handler(BaseHandler):
             "mode": 0 or 1 or 2
         }
         '''
-        logger.debug(str(requests))
+        # logger.debug(str(requests))
         dataset, waves = OrderedDict(), list()
         for req_id, item in enumerate(requests):
             # * Get paths and mode
@@ -326,5 +326,5 @@ class Wav2vec2Handler(BaseHandler):
             results[req_id][key]['message'] = pairs['message']
             results[req_id][key]['status'] = pairs['status']
         results = [json.dumps(result) for result in results]
-        logger.debug('outputs: ' + str(results))
+        # logger.debug('outputs: ' + str(results))
         return results
