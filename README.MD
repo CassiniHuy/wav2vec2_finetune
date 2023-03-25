@@ -1,4 +1,15 @@
-# Usage
+# Installation
+1. PyTorch installation: https://pytorch.org/
+2. Install transformers: https://huggingface.co/docs/transformers/installation
+
+e.g., installation by conda
+```
+>> conda create -n wav2vec2 python=3.8
+>> conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+>> conda install -c conda-forge transformers
+```
+
+
 
 # Finetune
 - Prepare your data, 2 options:
