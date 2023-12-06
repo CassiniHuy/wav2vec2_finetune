@@ -10,7 +10,7 @@ parser.add_argument('--model_id',
                     type=str,
                     default='facebook/wav2vec2-large-960h-lv60-self')
 parser.add_argument('--wav_json', type=str, default=None)
-parser.add_argument('--dataset_name', type=str, default='tedlium', choices=['tedlium'])
+parser.add_argument('--dataset_name', type=str, default='tedlium')
 parser.add_argument('--ckpt_path', type=str, default='./wav2vec2_models')
 parser.add_argument('--model_save_path', type=str, default=None, help='Default to the same as ckpt path.')
 parser.add_argument('--num_train_epochs', type=int, default=None, help='Number of training epochs.')
@@ -18,6 +18,7 @@ parser.add_argument('--training_restore', action='store_true', default=False)
 parser.add_argument('--batch_size', type=int, default=None)
 parser.add_argument('--local_files_only', action='store_true', default=False)
 parser.add_argument('--evaluation_strategy', type=str, default=None)
+parser.add_argument('--data_dir', type=str, default=None)
 args = parser.parse_args()
 print(args)
 
@@ -60,8 +61,9 @@ if args.wav_json is not None:
     train_dataset = datasets.create_dataset(train_wavs)
     test_dataset = datasets.create_dataset(test_wavs)
 elif args.dataset_name is not None:
-    splits = datasets.load_datasets(args.dataset_name, train_limit=7000, random_seed=1234)
-    train_dataset, test_dataset = splits['train'], splits['validation']
+    splits = datasets.load_datasets(args.dataset_name, data_dir=args.data_dir)
+    train_dataset, test_dataset = splits['train'], splits['test']#splits['train'], splits['validation']
+    train_dataset, test_dataset = datasets.filter_invalid_vocabs(train_dataset), datasets.filter_invalid_vocabs(test_dataset)
 else:
     raise RuntimeError('wav_json and dataset_name cannot both be None')
 

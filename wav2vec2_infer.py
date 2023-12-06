@@ -1,18 +1,19 @@
-import os
+import os, re
 from utils import tools
 from argparse import ArgumentParser
 from wav2vec2.infer_utils import from_pretrained, obtain_transcription
 from jiwer import wer as wer_metric
-from utils.datasets import load_datasets, create_dataset, filter_long_audios
+from utils.datasets import load_datasets, create_dataset, filter_long_audios, chars_to_ignore_regex
 
 parser = ArgumentParser()
 parser.add_argument('--wav_folder', type=str, default=None, help='folder containing wav/flac files')
 parser.add_argument('--wav_json', type=str, default=None, help='json file with key/value=wav_path/text')
-parser.add_argument('--dataset_name', type=str, default=None, choices=['tedlium'])
+parser.add_argument('--dataset_name', type=str, default=None)
 parser.add_argument('--model_id', type=str, default='facebook/wav2vec2-large-960h-lv60-self') # jonatasgrosman/wav2vec2-large-xlsr-53-english
 parser.add_argument('--with_lm_id', type=str, default=None) # LM: patrickvonplaten/wav2vec2-base-100h-with-lm
 parser.add_argument('--batch', type=int, default=20)
 parser.add_argument('--max_duration', type=int, default=20, help='filter out long audios')
+parser.add_argument('--data_dir', type=str, default=None)
 args = parser.parse_args()
 print(args)
 
@@ -41,9 +42,13 @@ model.eval()
 model.cuda()
 
 # Procedures
-def compute_wer(preds, labels):
+def compute_wer(preds, labels, filter_invalid_chars: bool = True):
     preds = [item.lower() for item in preds]
     labels = [item.lower() for item in labels]
+    if filter_invalid_chars:
+        func = lambda x: re.sub(chars_to_ignore_regex, '', re.sub(r'\s+', ' ', x)).strip()
+        preds = [func(x) for x in preds]
+        labels = [func(x) for x in labels]
     return wer_metric(truth=labels, hypothesis=preds)
 
 def save_results(dataset, dataset_name, results, save_dir=''):
@@ -78,7 +83,7 @@ if args.wav_json is not None:
     save_results(dataset, args.wav_json[:-5], results)
     
 if args.dataset_name is not None:
-    test_split = load_datasets(args.dataset_name, split='test')
+    test_split = load_datasets(args.dataset_name, split='test', data_dir=args.data_dir)
     test_split = filter_long_audios(test_split, args.max_duration)
     print('Get audios number:', len(test_split))
     results = obtain_transcription(test_split, model, processor, args.batch)

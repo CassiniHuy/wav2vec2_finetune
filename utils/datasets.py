@@ -64,7 +64,7 @@ def compute_dataset_length(
 
 
 def subset_dataset(dataset: Dataset, limit: int, random_seed: int = 999) -> Dataset:
-    if len(dataset) < limit:
+    if len(dataset) < limit or limit < 0:
         return dataset
     random.seed(random_seed)
     indices_selected = random.sample(list(range(len(dataset))), k=limit)
@@ -120,16 +120,17 @@ def load_tedlium(
 
 def load_datasets(
     dataset: str,
-    train_limit: int = 7000,
+    train_limit: int = -1,
     random_seed: int = 999,
     split: str = None,
+    data_dir: str = None,
     ) -> DatasetDict or Dataset:
     if dataset == 'tedlium':
         return load_tedlium(small_version=False, train_limit=train_limit, random_seed=random_seed, split=split)
     elif dataset == 'tedlium_small':
         return load_tedlium(small_version=True, train_limit=train_limit, random_seed=random_seed, split=split)
     else:
-        data_splits = load_dataset(dataset, split=split)
+        data_splits = load_dataset(dataset, split=split, data_dir=data_dir)
     if split is None:
         data_splits['train'] = subset_dataset(data_splits['train'], limit=train_limit, random_seed=random_seed)
     if split == 'train':
